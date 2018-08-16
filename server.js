@@ -1,18 +1,24 @@
 const express = require("express");
 const util = require('util');
+const config = require("./config/config.json");
+const dbHandler =require("./DBHandler.js");
 var app = express();
 
-const PORT = 3000 //maybe make this an environment variable later?
+const PORT = config.port;
+const DB = config.db;
+
 
 app.use(express.static('public'));
 
 var mysql = require('mysql');
 var pool = mysql.createPool({
-	host: "localhost",
-	user: "root",
-	password: "",
-	database: "oraclemarketcap"
+	host: DB.host,
+	user: DB.user,
+	password: DB.password,
+	database: DB.dbName
 });
+
+
 pool.query('SELECT 1 + 1 AS solution', (error, results, fields) => {
         		if (error) throw error;
         		console.log('Database connection successfully established; Fetching data.');
@@ -22,8 +28,29 @@ pool.query('SELECT 1 + 1 AS solution', (error, results, fields) => {
 pool.query = util.promisify(pool.query);
 
 app.get('/', (req,res) => { 
-	res.send("index.html"); 
+	res.send("index.html");
+	res.status(200); 
 });
+
+//=========================================================//
+//	Error Handler     									   //
+//=========================================================//
+// Sample usage:
+//
+// app.get('/test_error_handler', (req, res) => {
+//	 handleError(req, res, "test_error_1");
+// })
+
+
+function handleError(req, res, err) {
+	switch(req.method) {
+		case "GET":
+			res.status(404);
+			break;
+	}
+	console.error(err);
+	res.json({'error': err});
+}
 
 //=========================================================//
 //	Providers API										   //
@@ -31,193 +58,186 @@ app.get('/', (req,res) => {
 
 app.get('/providers', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM providers";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
+	try{
+		results = await dbHandler.getProviders();
+		console.log(results);
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
 
-})
+});
 
-app.get('/providers/address/:address', (req,res) => {
+app.get('/providers/address/:address', async (req,res) => {
 	var address = req.params.address;
-	console.log(address);
+	try{
+		results = await dbHandler.getProvidersByAddress(address)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 
-	var query = "SELECT * FROM providers WHERE provider_address=?";
-	pool.query(query, address, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-})
-
-
-//figure out how to differentiate between title and address GETS
-app.get('/providers/title/:title', (req,res) => {
+app.get('/providers/title/:title', async (req,res) => {
 	var title = req.params.title;
-	console.log(title);
-	var query = "SELECT * FROM providers WHERE provider_title=?";
-	pool.query(query, title, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-})
+	try{
+		results = await dbHandler.getProvidersByTitle(title)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
+
 app.get('/providers/asc', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM providers WHERE total_zap_value IS NOT NULL ORDER BY total_zap_value asc";
-	pool.query(query,function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getProvidersByZap(true)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 app.get('/providers/desc', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM providers WHERE total_zap_value IS NOT NULL ORDER BY total_zap_value desc";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getProvidersByZap(false)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 app.get('/providers/lastupdated', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM providers ORDER BY timestamp DESC";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getProvidersLastUpdated()
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 
 //=========================================================//
 //	Endpoints API										   //
 //=========================================================//
 app.get('/endpoints', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM endpoints";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
+	try{
+		results = await dbHandler.getEndpoints()
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 
-})
-
-app.get('/endpoints/address/:address', (req,res) => {
+app.get('/endpoints/address/:address', async (req,res) => {
 	var address = req.params.address;
-	console.log(address);
-	var query = "SELECT * FROM endpoints WHERE provider_address=?";
-	pool.query(query, address, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-})
-app.get('/endpoints/name/:name', (req,res) => {
+	try{
+		results = await dbHandler.getEndpointsByAddress(address)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
+
+app.get('/endpoints/name/:name', async(req,res) => {
 	var name = req.params.name;
-	console.log(name);
-	var query = "SELECT * FROM endpoints WHERE endpoint_name=?";
-	pool.query(query, name, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-})
-app.get('/endpoints/endpoint/:id', (req,res) => {
-	var id = req.params.id;
-	console.log(id);
-	var query = "SELECT * FROM endpoints WHERE endpoint_id=?";
-	pool.query(query, id, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-})
+	try{
+		results = await dbHandler.getEndpointsByName(name)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
+
+app.get('/endpoints/title/:title', async(req,res) => {
+	var title = req.params.title;
+	try{
+		results = await dbHandler.getEndpointsByProviderTitle(title)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
+
 app.get('/endpoints/zapasc', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM endpoints WHERE zap_value IS NOT NULL ORDER BY zap_value asc";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getEndpointsByZapValue(true)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 app.get('/endpoints/zapdesc', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM endpoints WHERE zap_value IS NOT NULL ORDER BY zap_value desc";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getEndpointsByZapValue(false)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 app.get('/endpoints/dotasc', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM endpoints WHERE dot_value IS NOT NULL ORDER BY dot_value asc";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getEndpointsByDotValue(true)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 app.get('/endpoints/dotdesc', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM endpoints WHERE dot_value IS NOT NULL ORDER BY dot_value desc";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getEndpointsByDotValue(false)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
+app.get('/endpoints/numdotasc', async function(req,res) {
+	console.log("recieved req");
+	try{
+		results = await dbHandler.getEndpointsByDotIssued(true)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
+app.get('/endpoints/numdotdesc', async function(req,res) {
+	console.log("recieved req");
+	try{
+		results = await dbHandler.getEndpointsByDotIssued(false)
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 app.get('/endpoints/lastupdated', async function(req,res) {
 	console.log("recieved req");
-	var query = "SELECT * FROM endpoints ORDER BY timestamp DESC";
-	pool.query(query, function(err, results) {
-		if(!err) {
-			res.json({data: results});
-		}
-		else 
-			console.error(err);
-	})
-
-})
+	try{
+		results = await dbHandler.getEndpoints()
+		res.json({data: results});
+	}
+	catch(err){
+		handleError(req, res, err);
+	}
+});
 
 app.listen(PORT, () => console.log(`Listening on port: ${PORT}`));
